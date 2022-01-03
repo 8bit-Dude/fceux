@@ -88,8 +88,9 @@ enum ESIFC
 	SIFC_TOPRIDER	= 14,
 	SIFC_FAMINETSYS = 15,
 	SIFC_HORI4PLAYER = 16,
+	SIFC_8BITHUB     = 17,
 
-	SIFC_COUNT = SIFC_HORI4PLAYER
+	SIFC_COUNT = SIFC_8BITHUB
 };
 
 
@@ -113,7 +114,8 @@ inline const char* ESIFC_Name(ESIFC esifc)
 		"Barcode World",
 		"Top Rider",
 		"Famicom Network Controller",
-		"Hori 4-Player Adapter"
+		"Hori 4-Player Adapter",
+		"8bit-Hub"
 	};
 
 	if(esifc >= SIFC_NONE && esifc <= SIFC_COUNT)

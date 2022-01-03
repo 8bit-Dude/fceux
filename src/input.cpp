@@ -405,6 +405,96 @@ static uint8 ReadHori4(int w, uint8 ret)
 static INPUTCFC HORI4C = { ReadHori4,0,StrobeHori4,0,0,0 };
 //------------------
 
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+//--------8bit-Hub driver for expansion port--------
+
+// 8bit-Hub Joystick states
+#define HUB_JOY_UP      1
+#define HUB_JOY_DOWN    2
+#define HUB_JOY_LEFT    4
+#define HUB_JOY_RIGHT   8
+#define HUB_JOY_FIRE1   16
+#define HUB_JOY_FIRE2   32
+#define HUB_MOUSE_LEFT  64
+#define HUB_MOUSE_RIGHT 128
+
+unsigned char hubControls[6] = { 255, 255, 255, 255, 80, 100 }; // Joysticks and Mouse
+
+unsigned char* EncodeJoysticks()
+{
+	for (char i = 0; i < 4; i++) {
+		hubControls[i] = 255;
+		if (joy[i] & 1)   hubControls[i] &= ~HUB_JOY_FIRE1;
+		if (joy[i] & 2)   hubControls[i] &= ~HUB_JOY_FIRE2;
+		if (joy[i] & 16)  hubControls[i] &= ~HUB_JOY_UP;
+		if (joy[i] & 32)  hubControls[i] &= ~HUB_JOY_DOWN;
+		if (joy[i] & 64)  hubControls[i] &= ~HUB_JOY_LEFT;
+		if (joy[i] & 128) hubControls[i] &= ~HUB_JOY_RIGHT;
+	}
+
+	// Temporary measure: Use joystick #1 also for mouse cursor
+	if (joy[0] & 16)  { if (hubControls[5] > 3)   { hubControls[5] -= 4; } else { hubControls[5] = 0; } }
+	if (joy[0] & 32)  { if (hubControls[5] < 196) { hubControls[5] += 4; } else { hubControls[5] = 199; } }
+	if (joy[0] & 64)  { if (hubControls[4] > 2)   { hubControls[4] -= 3; } else { hubControls[4] = 0; } }
+	if (joy[0] & 128) { if (hubControls[4] < 157) { hubControls[5] += 3; } else { hubControls[4] = 159; } }
+	if (joy[0] & 1)   { hubControls[0] &= ~HUB_MOUSE_LEFT; }
+			     else { hubControls[0] |= HUB_MOUSE_LEFT; }
+	if (joy[0] & 2)   { hubControls[0] &= ~HUB_MOUSE_RIGHT; }
+			     else { hubControls[0] |= HUB_MOUSE_RIGHT; }
+
+	return hubControls;
+}
+
+unsigned char* HubProcessByte(unsigned char data, unsigned char* dlen, unsigned char* controls);
+unsigned char hubMode = 0, hubByte = 0, hubOffset = 0, hubCur = 0, hubLen = 0, *hubData;
+
+static uint8 ReadHub(int w, uint8 ret)
+{
+	if (w == 1) {
+		if (hubMode && hubData && hubCur < hubLen) {
+			// Send 2 bits
+			hubByte = (hubData[hubCur] & (0b00000011 << hubOffset)) >> hubOffset;
+			ret |= (hubByte << 2);
+			hubOffset += 2;
+			if (hubOffset == 8) {
+				hubMode = 0;
+				hubOffset = 0;
+				hubCur += 1;
+			}
+		} else {
+			// Send "hub ready" signal
+			ret |= 0b00010000;
+		}
+	}
+	return ret;
+}
+
+static void WriteHub(uint8 v) {
+	// Check "nes ready" signal
+	if (v & 0b00000100) {
+		// Check R/W flag
+		if (!(v & 0b00000010)) {
+			hubByte |= (v & 0b00000001) << hubOffset++;
+			if (hubOffset == 8) {
+				hubData = HubProcessByte(hubByte, &hubLen, EncodeJoysticks());
+				hubOffset = 0; hubByte = 0; hubCur = 0;
+			}
+			hubMode = 0;
+		}
+		else {
+			hubMode = 1;
+		}
+	}
+	else {
+		hubOffset = 0;
+		hubByte = 0;
+	}
+}
+
+static INPUTCFC HUBC = { ReadHub,WriteHub,0,0,0,0 };
+//------------------
+
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 static INPUTC GPC={ReadGP,0,StrobeGP,UpdateGP,0,0,LogGP,LoadGP};
@@ -586,6 +676,9 @@ static void SetInputStuffFC()
 		break;
 	case SIFC_FAMINETSYS:
 		portFC.driver = FCEU_InitFamiNetSys();
+		break;
+	case SIFC_8BITHUB:
+		portFC.driver = &HUBC;
 		break;
 	case SIFC_HORI4PLAYER:
 		portFC.driver = &HORI4C;
