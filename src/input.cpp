@@ -419,34 +419,34 @@ static INPUTCFC HORI4C = { ReadHori4,0,StrobeHori4,0,0,0 };
 #define HUB_MOUSE_LEFT  64
 #define HUB_MOUSE_RIGHT 128
 
-unsigned char hubControls[6] = { 255, 255, 255, 255, 80, 100 }; // Joysticks and Mouse
+extern unsigned char hubState[6];
 
-unsigned char* EncodeJoysticks()
+void EncodeJoysticks()
 {
 	for (char i = 0; i < 4; i++) {
-		hubControls[i] = 255;
-		if (joy[i] & 1)   hubControls[i] &= ~HUB_JOY_FIRE1;
-		if (joy[i] & 2)   hubControls[i] &= ~HUB_JOY_FIRE2;
-		if (joy[i] & 16)  hubControls[i] &= ~HUB_JOY_UP;
-		if (joy[i] & 32)  hubControls[i] &= ~HUB_JOY_DOWN;
-		if (joy[i] & 64)  hubControls[i] &= ~HUB_JOY_LEFT;
-		if (joy[i] & 128) hubControls[i] &= ~HUB_JOY_RIGHT;
+		hubState[i] = 255;
+		if (joy[i] & 1)   hubState[i] &= ~HUB_JOY_FIRE1;
+		if (joy[i] & 2)   hubState[i] &= ~HUB_JOY_FIRE2;
+		if (joy[i] & 16)  hubState[i] &= ~HUB_JOY_UP;
+		if (joy[i] & 32)  hubState[i] &= ~HUB_JOY_DOWN;
+		if (joy[i] & 64)  hubState[i] &= ~HUB_JOY_LEFT;
+		if (joy[i] & 128) hubState[i] &= ~HUB_JOY_RIGHT;
 	}
 
 	// Temporary measure: Use joystick #1 also for mouse cursor
-	if (joy[0] & 16)  { if (hubControls[5] > 3)   { hubControls[5] -= 4; } else { hubControls[5] = 0; } }
-	if (joy[0] & 32)  { if (hubControls[5] < 196) { hubControls[5] += 4; } else { hubControls[5] = 199; } }
-	if (joy[0] & 64)  { if (hubControls[4] > 2)   { hubControls[4] -= 3; } else { hubControls[4] = 0; } }
-	if (joy[0] & 128) { if (hubControls[4] < 157) { hubControls[5] += 3; } else { hubControls[4] = 159; } }
-	if (joy[0] & 1)   { hubControls[0] &= ~HUB_MOUSE_LEFT; }
-			     else { hubControls[0] |= HUB_MOUSE_LEFT; }
-	if (joy[0] & 2)   { hubControls[0] &= ~HUB_MOUSE_RIGHT; }
-			     else { hubControls[0] |= HUB_MOUSE_RIGHT; }
-
-	return hubControls;
+	if (joy[0] & 16)  { if (hubState[5] > 3)   { hubState[5] -= 1; } else { hubState[5] = 0; } }
+	if (joy[0] & 32)  { if (hubState[5] < 196) { hubState[5] += 1; } else { hubState[5] = 199; } }
+	if (joy[0] & 64)  { if (hubState[4] > 2)   { hubState[4] -= 1; } else { hubState[4] = 0; } }
+	if (joy[0] & 128) { if (hubState[4] < 157) { hubState[4] += 1; } else { hubState[4] = 159; } }
+	if (joy[0] & 1)   { hubState[0] &= ~HUB_MOUSE_LEFT; }
+			     else { hubState[0] |=  HUB_MOUSE_LEFT; }
+	if (joy[0] & 2)   { hubState[0] &= ~HUB_MOUSE_RIGHT; }
+			     else { hubState[0] |=  HUB_MOUSE_RIGHT; }
+	if (joy[0] & 4)   { hubState[1] &= ~HUB_MOUSE_LEFT; }
+				 else { hubState[1] |=  HUB_MOUSE_LEFT; }
 }
 
-unsigned char* HubProcessByte(unsigned char data, unsigned char* dlen, unsigned char* controls);
+unsigned char* HubProcessByte(unsigned char inByte, unsigned char* outLen);
 unsigned char hubMode = 0, hubByte = 0, hubOffset = 0, hubCur = 0, hubLen = 0, *hubData;
 
 static uint8 ReadHub(int w, uint8 ret)
@@ -477,7 +477,8 @@ static void WriteHub(uint8 v) {
 		if (!(v & 0b00000010)) {
 			hubByte |= (v & 0b00000001) << hubOffset++;
 			if (hubOffset == 8) {
-				hubData = HubProcessByte(hubByte, &hubLen, EncodeJoysticks());
+				EncodeJoysticks();
+				hubData = HubProcessByte(hubByte, &hubLen);
 				hubOffset = 0; hubByte = 0; hubCur = 0;
 			}
 			hubMode = 0;
